@@ -1,4 +1,7 @@
 <script>
+
+  import { Prohibition } from 'prohibition'
+  console.log(Prohibition)
   let open = false;
   function toggleOpen() {
     open = !open
