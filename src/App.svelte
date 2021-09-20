@@ -8,12 +8,14 @@
 <main>
   <div class="wall">
     <h1>PROHIBITION</h1>
-    <p>Secret Knock Authentication</p>
+    <p class="subhead">Secret Knock Authentication</p>
     <div class="darkness"></div>
-      <div class="back-door">
-        <div class="door" class:door-open="{open}" on:click={toggleOpen}>
-          <div class="slat" />
-          <div class="handle" />
+      <div class="door-frame">
+        <div class="back-door">
+          <div class="door knocking" class:door-open="{open}" on:click={toggleOpen}>
+            <div class="slat" />
+            <div class="handle" />
+          </div>
         </div>
       </div>
   </div>
@@ -21,6 +23,7 @@
 </main>
 
 <style>
+
 
 h1 {
   font-family: 'Rampart One', cursive;
@@ -31,12 +34,27 @@ h1 {
   margin: 0;
   font-size: 64px;
   position: relative;
+
+}
+
+@media only screen and (max-width: 1624px) {
+  h1 {
+    font-size: 36px;
+  }
+}
+
+.subhead {
+  position: relative;
+  z-index: 5000;
+  text-align: center;
+  color: white;
 }
 
 .darkness {
   position: absolute;
   pointer-events: none;
   z-index: 1;
+  margin: 0;
   top: 0;
   bottom: 0;
   left: 0;
@@ -52,32 +70,44 @@ h1 {
 .wall {
   z-index: 0;
   position: relative;
-  background-color: #7c362d;
-  background-image: url("/brick-wall.png");
+  background-color: white;
+  margin: 0;
+  padding: 0;
   height: 100%;
   width: 100%;
 }
 
 .back-door {
   z-index: 1;
-  background-color: #333;
+  background-color: #111;
   position: relative;
   border-radius: 2px;
-  width: 200px;
-  height: 300px;
+  width: 180px;
+  height: 310px;
   margin: 0 auto;
   margin-top:50px;
 }
 
+.knocking {
+  border: 1px solid red;
+}
+
+.door-frame {
+  position: relative;
+  width: 200px;
+  height: 315px;
+  margin: 0 auto;
+  background: #363636;
+}
+
 .door {
-  background-color: #6f6f6f;
+  background-color: #444;
   position: absolute;
   border-radius: 2px;
   top: 0px;
   left: 0px;
-  background-image: url("/green-dust-and-scratches.png");
-  width: 200px;
-  height: 300px;
+  width: 180px;
+  height: 310px;
   transform-origin: left;
   transition: all 0.5s ease-in-out;
 }
@@ -93,7 +123,7 @@ h1 {
 
 .handle {
   position: absolute;
-  left: 160px;
+  left: 140px;
   top: 135px;
   width: 20px;
   height: 20px;

@@ -1,15 +1,23 @@
 @import url('https://fonts.googleapis.com/css2?family=Rampart+One&display=swap');
 
 html, body {
-	position: relative;
-	width: 100%;
-	height: 100%;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  margin: 0;
 }
 
 
 body {
-	box-sizing: border-box;
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;ckground-color: #420200;
-    background: black;
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;ckground-color: #420200;
+  background: #111;
+  padding: 0;
+  margin: 0;
+  background-image: radial-gradient(circle, transparent 0%, black 80%),
+  radial-gradient(ellipse at top, black 0%, transparent 50%),
+  radial-gradient(ellipse at 33% 0%, black 0%, transparent 50%),
+  radial-gradient(ellipse at 66% 0%, black 0%, transparent 50%);
 }
 
