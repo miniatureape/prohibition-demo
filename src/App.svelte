@@ -1,11 +1,39 @@
 <script>
 
+  import { onMount } from 'svelte';
   import { Prohibition } from 'prohibition'
-  console.log(Prohibition)
-  let open = false;
+
   function toggleOpen() {
     open = !open
   }
+
+  function getDownEvent() {
+    return 'ontouchstart' in window ? 'touchstart' : 'mousedown'
+  }
+
+  function getUpEvent() {
+    return 'ontouchend' in window ? 'touchend' : 'mouseup'
+  }
+
+  function displayKnock() {
+    knocking = true
+  }
+
+  function hideKnock() {
+    knocking = false
+  }
+
+  let knocking = false
+  let open = false
+
+  onMount(() => {
+
+    let door = document.querySelector('.door')
+    door.addEventListener(getDownEvent(), displayKnock)
+    door.addEventListener(getUpEvent(), hideKnock)
+    let guard = Prohibition.getGuard(door)
+
+  })
 </script>
 
 <main>
@@ -15,7 +43,10 @@
     <div class="darkness"></div>
       <div class="door-frame">
         <div class="back-door">
-          <div class="door knocking" class:door-open="{open}" on:click={toggleOpen}>
+          <div class="door"
+              class:door-knocking="{knocking}"
+              class:door-open="{open}"
+              >
             <div class="slat" />
             <div class="handle" />
           </div>
@@ -91,7 +122,7 @@ h1 {
   margin-top:50px;
 }
 
-.knocking {
+.door-knocking {
   border: 1px solid red;
 }
 
@@ -112,7 +143,7 @@ h1 {
   width: 180px;
   height: 310px;
   transform-origin: left;
-  transition: all 0.5s ease-in-out;
+  transition: transform 0.5s ease-in-out;
 }
 
 .slat {
@@ -134,9 +165,12 @@ h1 {
   background-color: black;
 }
 
+.door-knocking {
+  background: red;
+}
+
 .door-open {
   transform: perspective(1200px) translateZ(0px) translateX(0px) translateY(0px) rotateY(-35deg);
-
 }
 
 .bubble {
