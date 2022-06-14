@@ -1,185 +1,471 @@
 <script>
 
-  import { onMount } from 'svelte';
-  import { Prohibition } from 'prohibition'
+import { onMount } from 'svelte';
+import { writable } from 'svelte/store';
+import { fade } from 'svelte/transition';
+import { Prohibition, createDOMRenderer } from 'prohibition'
 
-  function toggleOpen() {
-    open = !open
+let door;
+let guard;
+let recorder;
+let renderer;
+let recordingRenderer;
+let knocking = "";
+let state = "scanning";
+let secretKnock = [ 2452, 2889, 3177, 3346, 3782, 4697, 5163 ];
+
+let recording = writable(false);
+
+onMount(() => {
+  initialize();
+})
+
+recording.subscribe(() => {
+  state = handleState(state, $recording ? 'recording' : 'recording-cancel')
+  if ($recording) {
+    guard.stop();
+    recorder.start();
   }
+})
 
-  function getDownEvent() {
-    return 'ontouchstart' in window ? 'touchstart' : 'mousedown'
+window.getState = function () {
+  console.log(state)
+}
+
+function handleState(state, evt) {
+  console.log(state, evt)
+  let states = {
+    scanning: {
+      events: {
+        knock: 'waiting',
+        recording: 'recording'
+      }
+    },
+    waiting: {
+      events: {
+        success: 'accepted',
+        failure: 'rejected'
+      }
+    },
+    rejected: {
+      events: {
+        wait: 'scanning',
+        'recording': 'recording'
+      }
+    },
+    recording: {
+      events: {
+        'recording-cancel': 'scanning',
+        'recording-finish': 'scanning',
+      }
+    },
+    accepted: {
+      events: {
+        'recording': 'recording'
+      }
+    }
+  };
+  if (evt in states[state].events) {
+    return states[state].events[evt];
   }
+  return state;
+}
 
-  function getUpEvent() {
-    return 'ontouchend' in window ? 'touchend' : 'mouseup'
+function getDownEvent() {
+  return 'ontouchstart' in window ? 'touchstart' : 'mousedown'
+}
+
+function getUpEvent() {
+  return 'ontouchend' in window ? 'touchend' : 'mouseup'
+}
+
+function handleKnockStart(e) {
+  e.preventDefault();
+  if (['scanning', 'waiting'].includes(state)) {
+    knocking = 'knocking';
   }
+}
 
-  function displayKnock() {
-    knocking = true
+function handleKnockEnd(e) {
+  e.preventDefault();
+  if (['scanning', 'waiting'].includes(state)) {
+    knocking = '';
   }
+}
 
-  function hideKnock() {
-    knocking = false
-  }
+function initialize() {
+  renderer = createDOMRenderer(document.getElementById('recorded-knock'))
+  renderer.drawContainer();
+  renderer.updateKnock(secretKnock)
+  recordingRenderer = createDOMRenderer(document.getElementById('recording-knock'))
+  recordingRenderer.drawContainer();
 
-  let knocking = false
-  let open = false
+  door = document.querySelector('#door')
+  guard = Prohibition.getGuard(door)
+  recorder = Prohibition.getRecorder(door)
 
-  onMount(() => {
-
-    let door = document.querySelector('.door')
-    door.addEventListener(getDownEvent(), displayKnock)
-    door.addEventListener(getUpEvent(), hideKnock)
-    let guard = Prohibition.getGuard(door)
-
+  guard.listen('knock', function() {
+    state = handleState(state, 'knock')
   })
+
+  guard.listen('guardDone', function() {
+    door.addEventListener('animationend', () => {
+      state = handleState(state, 'wait')
+      guard.start()
+    })
+    let evt = ''
+    if (guard.test(secretKnock)) {
+      evt = 'success'
+    } else {
+      evt = 'failure'
+    }
+    state = handleState(state, evt)
+  });
+  guard.start()
+
+  recorder.listen('recordDone', function() {
+    renderer.updateKnock(recorder.knock)
+    recordingRenderer.updateKnock([])
+    $recording = false;
+  });
+
+  recorder.listen('knockChanged', function(newKnock) {
+    recordingRenderer.updateKnock(newKnock)
+  })
+
+  // setup "knock" feedback outside of prohibition
+  door.addEventListener(getDownEvent(), handleKnockStart)
+  door.addEventListener(getUpEvent(), handleKnockEnd)
+}
+
 </script>
 
 <main>
-  <div class="wall">
-    <h1>PROHIBITION</h1>
+<div class="{state}">
+  <div class="wrapper">
+    <h1>Prohibition</h1>
     <p class="subhead">Secret Knock Authentication</p>
-    <div class="darkness"></div>
-      <div class="door-frame">
-        <div class="back-door">
-          <div class="door"
-              class:door-knocking="{knocking}"
-              class:door-open="{open}"
-              >
-            <div class="slat" />
-            <div class="handle" />
+  </div>
+  <div id="door-container">
+    <div class="wrapper">
+      <div id="mask">
+        <div id="room"></div>
+        <div id="door" class="door-open {knocking}">
+          <div id="knob"></div>
+          <div id="slat-container">
+          <div class="eye left">
+              <div class="ball"></div>
+            </div>
+            <div class="brow left"></div>
+            <div class="eye right">
+              <div class="ball"></div>
+            </div>
+            <div class="brow right"></div>
+            <div id="slat" class="checking" />
           </div>
         </div>
+        <span class="speech scram">Scram!</span><span class="speech ok">Come in.</span>
       </div>
+    </div>
   </div>
-  <div class="bubble bubble-bottom-left">Get Lost!</div>
+  <div class="wrapper">
+    <label class="toggle">
+      <input class="toggle-checkbox" type="checkbox" bind:checked={$recording}>
+      <div class="toggle-switch"></div>
+      <span class="toggle-label">rec</span>
+    </label>
+    <div id="visualization-wrapper">
+      <div id="recorded-knock"></div>
+    </div>
+    <div id="recording-visualization-wrapper">
+      <div id="recording-knock"></div>
+      <p class="caption">knock on the door to record your own secret knock</p>
+    </div>
+    <h2>What is this?</h2>
+    <p>Prohibition is a javascript library providing "secret knock" authentication.</p>
+    <p>It allows you to 'record' secret knocks (taps and clicks) and then test knocks against the recording.</p>
+    <p>You can supply a callback that is told if knock succeeded or not.</p>
+    <p>You can use it wire up a fun&mdash;but very insecure&mdash;authentication system.</p>
+
+    <h2>Who is this for?</h2>
+    <p>Me and maybe someone creating a website for a speakeasy? Might be good for hiding easter eggs.</p>
+
+    <h2>How do I use it?</h2>
+    <p>If you really want to, download and import the codes.</p>
+    <p>A secret knock is just an array of timestamps (more on this below).</p>
+      <pre class="hljs" style="display: block; overflow-x: auto; padding: 0.5em; background: rgb(43, 43, 43) none repeat scroll 0% 0%; color: rgb(186, 186, 186);"><span class="hljs-keyword" style="color: rgb(203, 120, 50);">let</span> <span class="hljs-attr">secretKnock</span> = [ <span class="hljs-number" style="color: rgb(104, 150, 186);">2452</span>, <span class="hljs-number" style="color: rgb(104, 150, 186);">2889</span>, <span class="hljs-number" style="color: rgb(104, 150, 186);">3177</span>, <span class="hljs-number" style="color: rgb(104, 150, 186);">3346</span>, <span class="hljs-number" style="color: rgb(104, 150, 186);">3782</span>, <span class="hljs-number" style="color: rgb(104, 150, 186);">4697</span>, <span class="hljs-number" style="color: rgb(104, 150, 186);">5163</span> ];</pre>
+    <p>Make a "Guard" by passing a DOM element to <span class="code">getGuard</span> and start it.</p>
+    <pre class="hljs" style="display: block; overflow-x: auto; padding: 0.5em; background: rgb(43, 43, 43) none repeat scroll 0% 0%; color: rgb(186, 186, 186);"><span class="hljs-keyword" style="color: rgb(203, 120, 50);">let</span> <span class="hljs-attr">door</span> = document.querySelector('<span class="hljs-comment" style="color: rgb(127, 127, 127);">#door')</span>
+<span class="hljs-keyword" style="color: rgb(203, 120, 50);">let</span> <span class="hljs-attr">guard</span> = Prohibition.getGuard(
+guard.start()</pre>
+    <p>This element will now listen to knocks. If enough time passes, a <span class="code">guardDone</span> event will fire. Listen to it and perform a test:</p>
+    <pre class="hljs" style="display: block; overflow-x: auto; padding: 0.5em; background: rgb(43, 43, 43) none repeat scroll 0% 0%; color: rgb(186, 186, 186);">door.listen(<span class="hljs-string" style="color: rgb(224, 196, 108);">'guardDone'</span>, <span class="hljs-function"><span class="hljs-params" style="color: rgb(185, 185, 185);">()</span> =&gt;</span> <span class="hljs-built_in" style="color: rgb(224, 196, 108);">console</span>.log(guard.test(secretKnock)) }</pre>
+    <p>The test function will return true if the secretKnock is close to the knock your user has just performed.</p>
+    <p>In order to make a secret knock, you can create a recorder. It's almost exactly the same as a Guard:</p>
+    <pre class="hljs" style="display: block; overflow-x: auto; padding: 0.5em; background: rgb(43, 43, 43) none repeat scroll 0% 0%; color: rgb(186, 186, 186);">let door = <span class="hljs-built_in" style="color: rgb(224, 196, 108);">document</span>.querySelector(<span class="hljs-string" style="color: rgb(224, 196, 108);">'#door'</span>)
+let recorder = Prohibition.getRecorder(door)
+recorder.listen(<span class="hljs-string" style="color: rgb(224, 196, 108);">'recordDone'</span>, <span class="hljs-function"><span class="hljs-params" style="color: rgb(185, 185, 185);">(secretKnock)</span> =&gt;</span> <span class="hljs-built_in" style="color: rgb(224, 196, 108);">console</span>.log(secretKnock) }
+recorder.start()</pre>
+    <p>You can paste those values right into an array or store them programatically.</p>
+    <p>There are a few other events you can listen to: <span class="code">knock</span>, <span class="code">knockChanged</span>.</p>
+    <h2>What else?</h2>
+    <p>The "testing" function is very simple. It normalizes all the values and checks how close they are against the reference. Feel free to write your own machine learning powered detector.</p>
+  </div>
+</div>
 </main>
 
 <style>
 
-
-h1 {
-  font-family: 'Rampart One', cursive;
-  z-index: 5000;
-  color: #aaa;
-  text-align: center;
-  padding-top: 30px;
-  margin: 0;
-  font-size: 64px;
-  position: relative;
-
+.code {
+  font-family: monospace;
 }
 
-@media only screen and (max-width: 1624px) {
-  h1 {
-    font-size: 36px;
-  }
+#door-container {
+  background: black;
+}
+
+.speech {
+  position: absolute;
+  background: white;
+  color: black;
+  padding: 10px;
+  border-radius: 3px;
+  border: solid black 1px;
+  top: 175px;
+  opacity: 0;
+  transition: opacity 0.5s ease-in-out;
+  pointer-events: none;
+}
+
+.rejected .scram {
+  opacity: 1;
+}
+
+.accepted .ok {
+  opacity: 1;
+}
+
+.ok {
+  left: 49px;
+}
+
+.scram {
+  left: 55px;
+}
+
+h1, h2 {
+  color: #333;
+}
+
+h1 {
+  margin: 0;
+  padding-top: 30px;
+  font-size: 36px;
+  text-align: center;
+}
+
+h2 {
+  margin: 0;
+  padding-top: 18px;
+  font-size: 24px;
 }
 
 .subhead {
-  position: relative;
-  z-index: 5000;
   text-align: center;
-  color: white;
 }
 
-.darkness {
-  position: absolute;
-  pointer-events: none;
-  z-index: 1;
-  margin: 0;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  width: 100%;
-  height: 100%;
-  background-image: radial-gradient(circle, transparent 0%, black 80%),
-  radial-gradient(ellipse at top, black 0%, transparent 50%),
-  radial-gradient(ellipse at 33% 0%, black 0%, transparent 50%),
-  radial-gradient(ellipse at 66% 0%, black 0%, transparent 50%);
-}
-
-.wall {
-  z-index: 0;
+#slat-container {
   position: relative;
+  top: 30px;
+  width:80px;
+  height:25px;
+  background: black;
+  margin: 0 auto;
+  overflow: hidden;
+}
+
+#slat {
+  position: absolute;
+  top:0;
+  left:0;
+  width:80px;
+  height:25px;
+  background: white;
+  box-sizing: border-box;
+  border: 1px solid black;
+  margin: 0 auto;
+}
+
+@keyframes knock {
+  0% {background: white;}
+  100% {background: gray;}
+}
+
+@keyframes check {
+  0% {top: 0px;}
+  10% {top: -25px;}
+  30% {top: -25px;}
+  40% {top: 0px;}
+  100% {top: 0px;}
+}
+
+@keyframes scan {
+  0% {left: -1px;}
+  10% {left: -1px;}
+  20% {left: 10px;}
+  30% {left: -1px;}
+  40% {left: -1px;}
+  100% {left: -1px;}
+}
+
+@keyframes rejected {
+  0% {top: 0px;}
+  10% {top: -25px;}
+  90% {top: -25px;}
+  100% {top: 0px;}
+}
+
+@keyframes scrutinize {
+  0% {left: 2px;}
+  33% {left: 2px;}
+  66% {left: 2px; top: 6px}
+  100% {left: 2px; top: 6px}
+}
+
+@keyframes scowlleft {
+  0% {transform: rotate(0);}
+  33% {transform: rotate(30deg);}
+  100% {transform: rotate(30deg);}
+}
+
+@keyframes scowlright {
+  0% {transform: rotate(0);}
+  33% {transform: rotate(-30deg);}
+  100% {transform: rotate(-30deg);}
+}
+
+.brow {
+  background: black;
+  position: absolute;
+  width: 15px;
+  height: 5px;
+  transform: rotate(0);
+}
+
+.brow.left {
+  left: 15px;
+}
+
+.brow.right {
+  right: 15px;
+}
+
+.eye {
+  position: absolute;
+  width: 15px;
+  height: 15px;
+  border-radius: 7px;
   background-color: white;
-  margin: 0;
-  padding: 0;
-  height: 100%;
-  width: 100%;
+  top: 5px;
 }
-
-.back-door {
-  z-index: 1;
-  background-color: #111;
-  position: relative;
-  border-radius: 2px;
-  width: 180px;
-  height: 310px;
-  margin: 0 auto;
-  margin-top:50px;
+.eye.left {
+  left: 15px;
 }
-
-.door-knocking {
-  border: 1px solid red;
+.eye.right {
+  right: 15px;
 }
-
-.door-frame {
-  position: relative;
-  width: 200px;
-  height: 315px;
-  margin: 0 auto;
-  background: #363636;
-}
-
-.door {
-  background-color: #444;
+.eye .ball {
   position: absolute;
-  border-radius: 2px;
-  top: 0px;
-  left: 0px;
+  width: 10px;
+  height: 10px;
+  border-radius: 5px;
+  top: 3px;
+  left: -1px;
+  background: black;
+  animation: scan 8s infinite;
+  animation-delay: 2s;
+}
+
+#knob {
+  position: absolute;
+  top: 150px;
+  left: 140px;
+  background: white;
+  border-radius: 9px;
+  border: 1px solid black;
+  width: 18px;
+  height: 18px;
+  box-shadow: #333 0px 2px 3px;
+}
+
+#mask {
+  position: relative;
+  height: 310px;
+  width: 180px;
+  margin: 0 auto;
+  overflow: hidden;
+}
+
+#door {
+  position: absolute;
+  background: #fff;
+  border: 1px solid black;
   width: 180px;
   height: 310px;
   transform-origin: left;
   transition: transform 0.5s ease-in-out;
 }
 
-.slat {
-  position: absolute;
-  left: 70px;
-  top: 50px;
-  width: 60px;
-  height: 25px;
-  background-color: #333;
+#door.knocking {
+  animation: knock .3s 1;
 }
 
-.handle {
-  position: absolute;
-  left: 140px;
-  top: 135px;
-  width: 20px;
-  height: 20px;
-  border-radius: 20px;
-  background-color: black;
-}
-
-.door-knocking {
+#door:focus {
   background: red;
 }
 
-.door-open {
-  transform: perspective(1200px) translateZ(0px) translateX(0px) translateY(0px) rotateY(-35deg);
+#room {
+  position: absolute;
+  height: 310px;
+  width: 180px;
+  margin: 0 auto;
+  background: #f0e337;
+}
+
+.accepted #door {
+  transform: perspective(1200px) translateZ(0px) translateX(0px) translateY(0px) rotateY(+35deg);
+}
+
+.scanning #slat {
+  animation: check 8s infinite;
+  animation-delay: 2s;
+}
+
+.rejected #slat {
+  animation: rejected 3s 1;
+}
+
+.rejected .eye .ball {
+  animation: scrutinize 3s 1;
+}
+
+.rejected .brow.left {
+  animation: scowlleft 3s 1;
+}
+
+.rejected .brow.right {
+  animation: scowlright 3s 1;
 }
 
 .bubble {
-  position: relative;
+  position: absolute;
+  bottom: 0px;
+  left: 50px;
   font-family: sans-serif;
   font-size: 16px;
   line-height: 24px;
   width: 100px;
-  background: #fff;
+  background: #ddd;
   border-radius: 10px;
   padding: 6px;
   text-align: center;
@@ -191,12 +477,36 @@ h1 {
   width: 0px;
   height: 0px;
   position: absolute;
-  border-left: 12px solid #fff;
+  border-left: 12px solid #ddd;
   border-right: 6px solid transparent;
-  border-top: 6px solid #fff;
+  border-top: 6px solid #ddd;
   border-bottom: 20px solid transparent;
   left: 32px;
   bottom: -24px;
+}
+
+#visualization-wrapper {
+  margin-top: 10px;
+}
+
+#recording-visualization-wrapper {
+  visibility: hidden;
+  height: 0;
+}
+
+.recording #recording-visualization-wrapper {
+  visibility: visible;
+  height: auto;
+}
+
+.caption {
+  text-align: center;
+  font-style: italic;
+  height: 0;
+}
+
+.recording .caption {
+  height: auto;
 }
 
 </style>

@@ -18,7 +18,7 @@
     "svelte": "^3.0.0"
   },
   "dependencies": {
-    "prohibition": "github:miniatureape/prohibition",
+    "prohibition": "file:../prohibition",
     "sirv-cli": "^1.0.0"
   }
 }
