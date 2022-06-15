@@ -111,14 +111,15 @@ function initialize() {
   guard.listen('guardDone', function() {
     door.addEventListener('animationend', () => {
       state = handleState(state, 'wait')
-      guard.start()
     })
     let evt = ''
+    console.log('guard has', guard.knock.length)
     if (guard.test(secretKnock)) {
       evt = 'success'
     } else {
       evt = 'failure'
     }
+    guard.reset()
     state = handleState(state, evt)
   });
   guard.start()
