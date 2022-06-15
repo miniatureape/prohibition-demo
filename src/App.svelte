@@ -25,15 +25,15 @@ recording.subscribe(() => {
   if ($recording) {
     guard.stop();
     recorder.start();
+  } else {
+    if (guard && recorder) {
+      guard.start();
+      recorder.stop();
+    }
   }
 })
 
-window.getState = function () {
-  console.log(state)
-}
-
 function handleState(state, evt) {
-  console.log(state, evt)
   let states = {
     scanning: {
       events: {
@@ -113,7 +113,6 @@ function initialize() {
       state = handleState(state, 'wait')
     })
     let evt = ''
-    console.log('guard has', guard.knock.length)
     if (guard.test(secretKnock)) {
       evt = 'success'
     } else {
@@ -125,6 +124,7 @@ function initialize() {
   guard.start()
 
   recorder.listen('recordDone', function() {
+    secretKnock = recorder.knock
     renderer.updateKnock(recorder.knock)
     recordingRenderer.updateKnock([])
     $recording = false;
